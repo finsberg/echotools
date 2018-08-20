@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+import argparse, sys
+import os
+import numpy as np
+import echotools
+
+
+
+def get_args() :
+    """ 
+    Parse command line arguments
+    """
+    descr = 'Convert a .h5 HDF5 echopac file to a FEniCS .h5 mesh file. '
+    uasage = 'Example: \nechoexport echofile -o echo_ply --format "ply" --surface "endo epi" \n'
+    parser = argparse.ArgumentParser(description=descr, usage = uasage)
+    parser.add_argument(action='store', dest='echo_file', metavar='echo.h5',
+                        type=str, help='EchoPach HDF5 .h5 filename. ')
+    parser.add_argument('-o', '--outdir',  type=str, action='store',
+                        help='Output directory for export.')
+    parser.add_argument('-t', '--time', type=int, default=-1,
+                        help='The time point. If not provided then it will export all time points')
+    parser.add_argument('-s', '--surfaces', type=str, dest='surfaces', default='endo',
+                        help='Which surfaces to export. Choices "endo", "epi", "strain"')
+    parser.add_argument('--format', type=str, default='vtu', choices=['vtu', 'vtk', 'ply'],
+                        help='The time point. If not provided then it will export all time points')
+    parser.add_argument('--scale', type=float, default=100.0,
+                        help=('Value to scale the geomtry. They are in meter so scale=100 '
+                              'will convert it to centimeter'))
+			
+    return parser
+
+def check_args(args):
+
+    if args['echo_file'] is None:
+        get_args().print_help()
+        sys.exit()
+
+    if not os.path.isfile(args['echo_file']):
+        raise OSError('File {} does not exist'.format(args['echo_file']))
+
+    if args['outdir'] is None:
+        args['outdir'] = "_".join([os.path.splitext(args['echo_file'])[0], args['format']])
+
+    surfaces = ['endo', 'epi', 'strain']
+    args['surfaces'] = args['surfaces'].split(' ')
+    for s in args['surfaces']:
+        assert s in surfaces
+
+
+def export(echo, outdir, time, outformat, surface, scale):
+
+    verts_ = getattr(echo, '{}_verts'.format(surface))(time, scale)
+    faces_= getattr(echo, '{}_faces'.format(surface))
+
+    def _export(verts, faces, fname):
+    
+        if outformat in ['ply', 'vtk']:
+            grid = echotools.export.to_polydata(verts, faces)
+            
+        else:
+            grid = echotools.export.to_grid(verts, faces)
+
+        export = getattr(echotools.export, 'write_{}'.format(outformat))
+        export(fname, grid)
+        
+
+    if surface == 'strain':
+        for r, (v, f) in enumerate(zip(verts_, faces_)):
+            fname = os.path.join(outdir, '{}region{}_{}.{}'.format(surface, r,
+                                                                   time, outformat))
+            _export(v, f, fname)
+    else:
+        fname = os.path.join(outdir, '{}_{}.{}'.format(surface, time, outformat))
+        _export(verts_, faces_, fname)
+
+
+
+def main_func(args):
+
+    if not os.path.exists(args['outdir']):
+        os.makedirs(args['outdir'])
+
+
+    echo = echotools.EchoFile(args['echo_file'])
+
+    assert -1 <= args['time'] < echo.num_points
+
+    for surface in args['surfaces']:
+
+        if args['time'] == -1:
+            for t in range(echo.num_points):
+                export(echo,
+                       args['outdir'],
+                       t,
+                       args['format'],
+                       surface,
+                       args['scale'])
+        else:
+            export(echo,
+                   args['outdir'],
+                   args['time'],
+                   args['format'],
+                   surface,
+                   args['scale']) 
+
+
+if __name__ == "__main__":
+
+    args =  vars(get_args().parse_args())
+
+    check_args(args)
+    main_func(args)

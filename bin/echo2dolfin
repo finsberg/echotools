@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+import argparse, sys
+import os
+import echotools
+
+
+
+def get_args() :
+    """ 
+    Parse command line arguments
+    """
+    descr = 'Convert a .h5 HDF5 echopac file to a FEniCS .h5 mesh file. '
+    uasage = 'Example: \n echo2dolfin -i echo.h5 -o mesh.h5 -fib -s \n'
+    parser = argparse.ArgumentParser(description=descr, usage = uasage)
+    parser.add_argument(action='store', dest='echo_file', metavar='USsimPatient.h5',
+                        type=str, help='EchoPach HDF5 .h5 filename. ')
+    parser.add_argument('-o', '--output',  metavar='myfile.h5',
+                        type=str,
+                        help='FEniCS .h5 filename. ')
+    parser.add_argument('-t', '--time',
+                        type=int, default=0,
+                        help='The time frame. 0 is typically end-diastole ')
+    parser.add_argument('-fib', '--fibers', action='store_true',
+                        help='Generate rule-based fibers based on the Bayer algorithm. '\
+                        'Default: yes')
+    parser.add_argument('-fepi', '--fibers_epicardium',
+                        type=int, default=-60,
+                        help='Helix fiber angle on the epicardium (if fiber = True) '+\
+                        'Default: -60')
+    parser.add_argument('-fendo', '--fibers_endocardium',
+                        type=int, default=60,
+                        help='Helix fiber angle on the endocardium (if fiber = True). ' +\
+                        'Default: 60')
+    parser.add_argument('-lb', '--local_basis', action='store_true',
+                        help='Generate local basis in the circumferential,'\
+                        ' longitudinal and radial direction. '\
+                        'Default: yes')
+    parser.add_argument('-st', '--strain_type',
+                        type=int, default=17, choices = [0,16,17],
+                        help='Generate strain markers for the AHA-zone. '\
+                        'If 0, no markers will be generated. ')
+    parser.add_argument('-s', '--smooth', action='store_true',
+                        help='Smooth surfaces using GAMer. '\
+                        'Default: no')
+    parser.add_argument('-c', '--mesh_char_len',
+                        type=float, default=0.65,
+                        help='Resolution of the output mesh. Smaller values gives finer mesh ')
+    parser.add_argument('-plot', '--plot_mesh', action='store_true',                        
+                        help='Plot the mesh after meshing' \
+                        'Default: no')
+    
+
+    return parser
+
+def check_args(args):
+
+    if (args.echo_file is None):
+        get_args().print_help()
+        sys.exit()
+
+    if args.output is None:
+        args.output = os.path.splitext(args.echo_file)[0]+'_mesh.h5'
+        
+def setup_parameters(args):
+    pass
+    
+    # params = setup_mesh_parameters(args.echo_file, args.output, args.mesh_char_len)
+
+    # params["time"] = args.time
+    # params["mesh_type"] = "lv"
+  
+
+    # params["use_gamer"] = args.smooth
+    # params["generate_fibers"] = args.fibers
+    # params["strain_type"] = str(args.strain_type)
+    # params["generate_local_basis"] = False
+
+    # params["Fibers"]["fiber_angle_epi"] = args.fibers_epicardium
+    # params["Fibers"]["fiber_angle_endo"] = args.fibers_endocardium
+    # return params
+
+def main_func(args):
+
+    pass
+
+    # params = setup_parameters(args)
+    # M = MeshConstructor(params)
+    # M.mesh()
+
+    # if args.plot_mesh:
+    #     from dolfin import plot, interactive
+    #     geo = load_geometry_from_h5(params["h5name"], str(params["time"]))
+    #     plot(geo.mesh)
+    #     plot(geo.sfun)
+    #     interactive()
+    
+
+if __name__ == "__main__":
+
+    args =  get_args().parse_args()
+
+    check_args(args)
+    main_func(args)
+
+
