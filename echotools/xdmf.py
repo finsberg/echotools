@@ -4,69 +4,78 @@ from textwrap import dedent
 
 def asint(s):
     try:
-        return int(s), ''
+        return int(s), ""
     except ValueError:
-        return sys.maxint, s
+        return sys.maxsize, s
 
 
 body = dedent(
-              """<?xml version="1.0"?>
+    """<?xml version="1.0"?>
               <Xdmf Version="2.0" xmlns:xi="http://www.w3.org/2001/XInclude">
               <Domain>
               {body}
               </Domain>
-              </Xdmf>""")
+              </Xdmf>"""
+)
 
 
 series = dedent(
-                """<Grid Name="{name}" GridType="Collection" CollectionType="Temporal">
+    """<Grid Name="{name}" GridType="Collection" CollectionType="Temporal">
                 <Time TimeType="List">
                 <DataItem Format="XML" Dimensions="{N}"> {lst}</DataItem>
                 </Time>
                 {entry}
-                </Grid>""")
+                </Grid>"""
+)
 
 
 entry_single = dedent(
-                      """<Grid Name="time_{iter}" GridType="Uniform">
+    """<Grid Name="time_{iter}" GridType="Uniform">
                       {frame}
                       </Grid>
-                      """)
+                      """
+)
 
 entry = dedent(
-               """<Grid Name="time_{iter}" GridType="Uniform">
+    """<Grid Name="time_{iter}" GridType="Uniform">
                {frame}
                </Grid>
-               """)
+               """
+)
 
 
 topology = dedent(
-                  """<Topology NumberOfElements="{ncells}" TopologyType="{cell}">
+    """<Topology NumberOfElements="{ncells}" TopologyType="{cell}">
                   <DataItem Dimensions="{ncells} {dim}" Format="HDF">{h5name}:/{h5group}</DataItem>
-                  </Topology>""")
+                  </Topology>"""
+)
 
 
 topology_polyvert = dedent(
-                           """<Topology TopologyType="Polyvertex" NodesPerElement="{nverts}">
-                           </Topology>""")
+    """<Topology TopologyType="Polyvertex" NodesPerElement="{nverts}">
+                           </Topology>"""
+)
 
 
 geometry = dedent(
-                  """<Geometry GeometryType="{coords}">
+    """<Geometry GeometryType="{coords}">
                   <DataItem Dimensions="{nverts} {dim}" Format="HDF">{h5name}:/{h5group}</DataItem>
-                  </Geometry>""")
+                  </Geometry>"""
+)
 
 
 vector_attribute = dedent(
-                          """<Attribute Name="{name}" AttributeType="Vector" Center="{center}">
+    """<Attribute Name="{name}" AttributeType="Vector" Center="{center}">
                           <DataItem Format="HDF" Dimensions="{nverts} {dim}">{h5name}:/{h5group}</DataItem>
-                          </Attribute>""")
+                          </Attribute>"""
+)
 
 
 scalar_attribute = dedent(
-                          """<Attribute Name="{name}" AttributeType="Scalar" Center="{center}">
+    """<Attribute Name="{name}" AttributeType="Scalar" Center="{center}">
                           <DataItem Format="HDF" Dimensions="{nverts} {dim}">{h5name}:/{h5group}</DataItem>
-                          </Attribute>""")
+                          </Attribute>"""
+)
 
 
 if __name__ == "__main__":

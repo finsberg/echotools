@@ -18,29 +18,25 @@
 import dolfin
 
 import numpy as np
-import strain_regions as sr
+from . import strain_regions as sr
+from . import surface as surf
 
-import os, yaml
+import os
+import logging
+import yaml
 
 try:
     import h5py
+
     has_h5py = True
-except:
-    print "Warning: h5py is not installed"
+except ImportError:
+    print("Warning: h5py is not installed")
     has_h5py = False
 
 parallel_h5py = h5py.h5.get_config().mpi
 
-try:
-    import mpi4py, petsc4py
-    has_mpi4py = True
-except:
-    has_mpi4py = False
-    if parallel_h5py: raise ImportError
-else:
-    from mpi4py import MPI as mpi4py_MPI
 
-ROUND_OFF_FILE =  "round_off.yml"
+ROUND_OFF_FILE = "round_off.yml"
 
 
 # Mesh should be in cm
@@ -51,17 +47,21 @@ ESTIMATE_FOCAL_POINT = False
 DEFAULT_FOCAL_POINT = 6.0
 
 # Logger
-import logging
+
+
 log_level = logging.INFO
-def make_logger(name, level = logging.INFO):
+
+
+def make_logger(name, level=logging.INFO):
 
     mpi_filt = lambda: None
+
     def log_if_proc0(record):
         if dolfin.MPI.rank(dolfin.mpi_comm_world()) == 0:
             return 1
         else:
             return 0
-        
+
     mpi_filt.filter = log_if_proc0
 
     logger = logging.getLogger(name)
@@ -70,24 +70,23 @@ def make_logger(name, level = logging.INFO):
     ch = logging.StreamHandler()
     ch.setLevel(0)
 
-
-    formatter = logging.Formatter('%(message)s')
+    formatter = logging.Formatter("%(message)s")
     ch.setFormatter(formatter)
-    
 
     logger.addHandler(ch)
     logger.addFilter(mpi_filt)
 
-    
     dolfin.set_log_active(False)
     dolfin.set_log_level(dolfin.WARNING)
-    
+
     return logger
+
 
 logger = make_logger("Mesh generation", log_level)
 
-### Get/Load stuff ####
-def load_echo_geometry(echo_path, time, scale = 100):
+
+# Get/Load stuff ####
+def load_echo_geometry(echo_path, time, scale=100):
     """Get geometric data from echo data.
     Get verices and faces of the endo- and epicardium,
     as well as a strain mesh defining the location of the
@@ -101,38 +100,43 @@ def load_echo_geometry(echo_path, time, scale = 100):
     :rtype: dict
 
     """
-    
-    import surface as surf
+
     assert os.path.isfile(echo_path), "File {} does not exist".format(echo_path)
 
     data = {}
     with h5py.File(echo_path, "r") as echo_file:
-        
-        epi = echo_file['/LV_Mass_Epi']
-        endo = echo_file['/LV_Mass_Endo']
 
-        data["epi_faces"] = np.array(epi['indices'])
+        epi = echo_file["/LV_Mass_Epi"]
+        endo = echo_file["/LV_Mass_Endo"]
+
+        data["epi_faces"] = np.array(epi["indices"])
         # Take out epi vertices for the timeslot given
         # and convert from m3 to cm3
-        data["epi_verts"] = scale*np.array(epi['vertices'])[time,:,:]
-            
-        data["endo_faces"] = np.array(endo['indices'])
+        data["epi_verts"] = scale * np.array(epi["vertices"])[time, :, :]
+
+        data["endo_faces"] = np.array(endo["indices"])
         # Take out endo vertices for the timeslot given
         # and convert from m3 to cm3
-        data["endo_verts"] = scale*np.array(endo['vertices'])[time,:,:]
+        data["endo_verts"] = scale * np.array(endo["vertices"])[time, :, :]
 
         # Strain mesh containing information about AHA segment
         # Convert from m3 to cm3
-        data["strain_mesh"] = scale*np.array(echo_file['/LV_Strain/mesh'])[time,:,:]
+        data["strain_mesh"] = scale * np.array(echo_file["/LV_Strain/mesh"])[time, :, :]
+
+    data["strain_coords"] = surf.strain_mesh_coordinates(data["strain_mesh"])
+
+    return data
 
 
-    data["strain_coords"] = surf.get_strain_region_coordinates(data["strain_mesh"])
-
-    return data   
-
-def create_lv_ply_files(echo_path, time, round_off = 0.0,
-                        esitmate_focal_point = True, plydir = None,
-                        use_gamer = False, cut_base = True):
+def create_lv_ply_files(
+    echo_path,
+    time,
+    round_off=0.0,
+    esitmate_focal_point=True,
+    plydir=None,
+    use_gamer=False,
+    cut_base=True,
+):
     """Create ply files to be used for lv mesh generation
 
     :param patient: Name of patient
@@ -145,22 +149,23 @@ def create_lv_ply_files(echo_path, time, round_off = 0.0,
     :rtype: dict
 
     """
-    import surface as surf
+    from . import surface as surf
 
     original_data = load_echo_geometry(echo_path, time)
     if plydir is not None:
-        surf.save_surfaces_to_ply(plydir, time,  original_data, "_raw")
-        
-        
+        surf.save_surfaces_to_ply(plydir, time, original_data, "_raw")
+
     # Original long axis diameter
     from scipy.spatial import distance
-    long_axis_endo = np.max(distance.cdist(original_data["endo_verts"],
-                                           original_data["endo_verts"],
-                                           "euclidean"))
+
+    long_axis_endo = np.max(
+        distance.cdist(
+            original_data["endo_verts"], original_data["endo_verts"], "euclidean"
+        )
+    )
 
     # Transform the data
     transformed_data = surf.transform_surfaces(round_off, **original_data)
-
 
     # Cut of the base
     if cut_base:
@@ -170,7 +175,7 @@ def create_lv_ply_files(echo_path, time, round_off = 0.0,
 
     if use_gamer:
         data = surf.smooth_surface_gamer(data)
-    
+
     if esitmate_focal_point:
         foc = surf.compute_focal_point(long_axis_endo, **data)
     else:
@@ -180,13 +185,14 @@ def create_lv_ply_files(echo_path, time, round_off = 0.0,
 
     if plydir is None:
         import tempfile
+
         plydir = tempfile.mkdtemp()
-        
-    
-    surf.save_surfaces_to_ply(plydir, time,  data)
+
+    surf.save_surfaces_to_ply(plydir, time, data)
     data["plydir"] = plydir
     return data
-    
+
+
 def get_time_stamps(h5path):
     """
     Get the time stamps for the
@@ -199,43 +205,81 @@ def get_time_stamps(h5path):
     """
     assert os.path.isfile(h5path), "Invalid name {}".format(h5path)
     echo_file = h5py.File(h5path, "r")
-    time_stamps = np.array(echo_file['time_stamps'])
+    time_stamps = np.array(echo_file["time_stamps"])
     echo_file.close()
     return time_stamps
 
-def get_markers(mesh_type = "lv"):
-    
+
+def get_fiber_markers(mesh_type="lv"):
+    """
+    Get the markers for the mesh.
+    This is the default markers for fiberrules.
+
+    :param str mesh_type: type of mesh, 'lv' or 'biv'
+    :returns: The markers 
+    :rtype: dict
+
+    """
+
+    if mesh_type == "lv":
+
+        return {
+            "BASE": 10,
+            "ENDO": 30,
+            "EPI": 40,
+            "WALL": 50,
+            "ENDORING": 300,
+            "EPIRING": 400,
+            "WALL": 50,
+        }
+
+    elif mesh_type == "biv":
+
+        return {
+            "BASE": 10,
+            "ENDO_RV": 20,
+            "ENDO_LV": 30,
+            "EPI": 40,
+            "ENDORING_RV": 200,
+            "ENDORING_LV": 300,
+            "EPIRING": 400,
+            "WALL": 50,
+        }
+
+
+def get_markers(mesh_type="lv"):
+
     assert mesh_type in ["lv", "biv"]
 
     fiber_markers = get_fiber_markers(mesh_type)
 
     markers = {}
-    markers["NONE"] = (0, 3) 
+    markers["NONE"] = (0, 3)
 
-    markers["BASE"] = (fiber_markers["BASE"], 2) 
-    markers["EPI"] =  (fiber_markers["EPI"], 2)
-    markers["EPIRING"] =  (fiber_markers["EPIRING"], 1)
+    markers["BASE"] = (fiber_markers["BASE"], 2)
+    markers["EPI"] = (fiber_markers["EPI"], 2)
+    markers["EPIRING"] = (fiber_markers["EPIRING"], 1)
 
     if mesh_type == "lv":
-    
+
         markers["ENDO"] = (fiber_markers["ENDO"], 2)
-        
-        markers["ENDORING"] =  (fiber_markers["ENDORING"], 1)
+
+        markers["ENDORING"] = (fiber_markers["ENDORING"], 1)
 
     else:
 
         markers["ENDO_RV"] = (fiber_markers["ENDO_RV"], 2)
         markers["ENDO_LV"] = (fiber_markers["ENDO_LV"], 2)
-        
-        markers["ENDORING_RV"] =  (fiber_markers["ENDORING_RV"], 1)
-        markers["ENDORING_LV"] =  (fiber_markers["ENDORING_LV"], 1)
+
+        markers["ENDORING_RV"] = (fiber_markers["ENDORING_RV"], 1)
+        markers["ENDORING_LV"] = (fiber_markers["ENDORING_LV"], 1)
 
     return markers
 
-    
+
 def get_round_off_buffer(patient, time):
     if os.path.isfile(ROUND_OFF_FILE):
-        with open(ROUND_OFF_FILE, 'r') as outfile:
+        with open(ROUND_OFF_FILE, "r") as outfile:
             dic = yaml.load(outfile)
 
         try:
@@ -249,11 +293,12 @@ def get_round_off_buffer(patient, time):
 def get_measured_volume(echo_path, time):
 
     h5file = h5py.File(echo_path, "r")
-    volumes = np.array(h5file["LV_Volume_Trace"])*1000*1000
-    vol  = volumes[time]
+    volumes = np.array(h5file["LV_Volume_Trace"]) * 1000 * 1000
+    vol = volumes[time]
     h5file.close()
 
     return vol
+
 
 ### Create/generate stuff ###
 def generate_local_basis_functions(mesh, focal_point):
@@ -270,13 +315,12 @@ def generate_local_basis_functions(mesh, focal_point):
     """
 
     # Make basis functions
-    c, r, l = sr.make_crl_basis(mesh, focal_point) 
+    c, r, l = sr.make_crl_basis(mesh, focal_point)
 
-    return [c,r,l]
-    
+    return [c, r, l]
 
-def generate_strain_markers(mesh, focal_point,
-                            strain_regions, strain_type):
+
+def generate_strain_markers(mesh, focal_point, strain_regions, strain_type):
     """Generate markers for the AHA segements, 
     and mark the mesh accordingly
 
@@ -288,26 +332,19 @@ def generate_strain_markers(mesh, focal_point,
 
 
     """
-    
 
-    
     # Strain Markers
     sfun = dolfin.MeshFunction("size_t", mesh, 3)
-    sfun = sr.mark_lv_strain_regions(sfun,
-                                     mesh,
-                                     focal_point,
-                                     strain_regions,
-                                     strain_type)
+    sfun = sr.mark_lv_strain_regions(
+        sfun, mesh, focal_point, strain_regions, strain_type
+    )
 
-
-    
     # Mark the cells accordingly
     for cell in dolfin.cells(mesh):
         mesh.domains().set_marker((cell.index(), sfun[cell]), 3)
 
 
-
-def create_geometry_with_strain(meshdir, case, stage, mesh_scaling=1.0, markings = None) :
+def create_geometry_with_strain(meshdir, case, stage, mesh_scaling=1.0, markings=None):
     """
     Create geometry by meshing the three surfaces (endo lv, endo rv and epi)
     together using a wrapped version for gmsh.
@@ -317,8 +354,9 @@ def create_geometry_with_strain(meshdir, case, stage, mesh_scaling=1.0, markings
     In this case we are not able to mesh the patches inside the mesh.
     """
     from textwrap import dedent
-    geocode = dedent(\
-    """\
+
+    geocode = dedent(
+        """\
     // meshing options
     Mesh.CharacteristicLengthFromCurvature = 1;
     Mesh.Lloyd = 1;
@@ -443,31 +481,35 @@ def create_geometry_with_strain(meshdir, case, stage, mesh_scaling=1.0, markings
     V_wall2 = newv; Volume(V_wall2) = {{ SL_wall2 }};
     Physical Volume("WALL") = {{ V_wall1, V_wall2 }};
 
-    """.format(stage=stage, case=case, meshdir=meshdir,
-                mesh_scaling=mesh_scaling))
+    """.format(
+            stage=stage, case=case, meshdir=meshdir, mesh_scaling=mesh_scaling
+        )
+    )
 
-    from gmsh import geo2dolfin
-    mesh, markers = geo2dolfin(geocode, marker_ids = markings)
-    
+    from .gmsh import geo2dolfin
+
+    mesh, markers = geo2dolfin(geocode, marker_ids=markings)
+
+    return mesh, markers
 
 
-    return mesh, markers    
-
-def create_lv_geometry(time, ply_dir, mesh_char_len=1.0, marker_ids=None) :
+def create_lv_geometry(time, ply_dir, mesh_char_len=1.0, marker_ids=None):
     """
     Create geometry by meshing the three surfaces (endo lv, endo rv and epi)
     together using a wrapped version for gmsh
     """
-    
+
     # Make sure the ply files excists
     for fname in ["endo_lv_{}.ply".format(time), "epi_lv_{}.ply".format(time)]:
         if not os.path.isfile("{}/{}".format(ply_dir, fname)):
-            raise IOError("'{}' is not a valid .ply file.".format(\
-                "{}/{}".format(ply_dir, fname)))
+            raise IOError(
+                "'{}' is not a valid .ply file.".format("{}/{}".format(ply_dir, fname))
+            )
 
     from textwrap import dedent
+
     geocode = dedent(\
-    """\
+        """\
     // meshing options
     Mesh.CharacteristicLengthFromCurvature = 1;
     Mesh.Lloyd = 1;
@@ -511,31 +553,38 @@ def create_lv_geometry(time, ply_dir, mesh_char_len=1.0, marker_ids=None) :
     V_wall = newv; Volume(V_wall) = {{ SL_wall }};
     Physical Volume("WALL") = {{ V_wall }};
     Coherence;
-    """).format(time=time, ply_dir=ply_dir,
-                mesh_scaling=10.0, mesh_char_len=mesh_char_len)
+    """
+    ).format(time=time, ply_dir=ply_dir, mesh_scaling=10.0, mesh_char_len=mesh_char_len)
     # mesh_scaling = 1.0 -> cm
     # mesh_scaling = 10 -> mm
-    from gmsh import geo2dolfin
+    from .gmsh import geo2dolfin
+
     mesh, markers = geo2dolfin(geocode, marker_ids=marker_ids)
-    
 
     return mesh, markers
 
-def create_biv_geometry(time, ply_dir, mesh_char_len=1.0, marker_ids=None) :
+
+def create_biv_geometry(time, ply_dir, mesh_char_len=1.0, marker_ids=None):
     """
     Create geometry by meshing the three surfaces (endo lv, endo rv and epi)
     together using a wrapped version for gmsh
     """
 
     # Make sure the ply files excists
-    for fname in ["endo_lv_us_{}.ply".format(time), "endo_rv_us_{}.ply".format(time), "epi_us_{}.ply".format(time)]:
+    for fname in [
+        "endo_lv_us_{}.ply".format(time),
+        "endo_rv_us_{}.ply".format(time),
+        "epi_us_{}.ply".format(time),
+    ]:
         if not os.path.isfile("{}/{}".format(ply_dir, fname)):
-            raise IOError("'{}' is not a valid .ply file.".format(\
-                "{}/{}".format(ply_dir, fname)))
+            raise IOError(
+                "'{}' is not a valid .ply file.".format("{}/{}".format(ply_dir, fname))
+            )
 
     from textwrap import dedent
-    geocode = dedent(\
-    """\
+
+    geocode = dedent(
+        """\
     // meshing options
     Mesh.CharacteristicLengthFromCurvature = 1;
     Mesh.Lloyd = 1;
@@ -581,27 +630,23 @@ def create_biv_geometry(time, ply_dir, mesh_char_len=1.0, marker_ids=None) :
     V_wall = newv; Volume(V_wall) = {{ SL_wall }};
     Physical Volume("WALL") = {{ V_wall }};
 
-    """).format(time=time, ply_dir=ply_dir,
-                mesh_scaling=10.0, mesh_char_len=mesh_char_len)
+    """
+    ).format(time=time, ply_dir=ply_dir, mesh_scaling=10.0, mesh_char_len=mesh_char_len)
     # mesh_scaling = 1.0 -> cm
     # mesh_scaling = 10 -> mm
-   
-    
-    from gmsh import geo2dolfin
+
+    from .gmsh import geo2dolfin
+
     mesh, markers = geo2dolfin(geocode, marker_ids=marker_ids)
-    
 
     return mesh, markers
 
 
-
-        
-
 ### Compute/Do stuff #####
-                
+
+
 def refine_mesh(mesh, cell_markers=None):
 
-    
     logger.info("\nRefine mesh")
     dolfin.parameters["refinement_algorithm"] = "plaza_with_parent_facets"
 
@@ -615,7 +660,7 @@ def refine_mesh(mesh, cell_markers=None):
     # Dont work!!
     # rfun = MeshFunction("size_t", mesh, 1, mesh.domains())
     # new_rfun = adapt(rfun, new_mesh)
-    
+
     # Refine facetfunction
     ffun = dolfin.MeshFunction("size_t", mesh, 2, mesh.domains())
     new_ffun = dolfin.adapt(ffun, new_mesh)
@@ -632,7 +677,7 @@ def refine_mesh(mesh, cell_markers=None):
             new_mesh.domains().set_marker((f.index(), new_ffun[f]), 2)
 
             # for e in edges(cell):
-                # new_mesh.domains().set_marker((e.index(), new_rfun[e]), 1)
+            # new_mesh.domains().set_marker((e.index(), new_rfun[e]), 1)
 
     return new_mesh
 
@@ -645,14 +690,13 @@ def refine_at_strain_regions(mesh, regions):
     if regions == "all":
         cell_markers.set_all(True)
     else:
-    
+
         cell_markers.set_all(False)
 
         for c in dolfin.cells(mesh):
             if strain_markers[c] in regions:
                 cell_markers[c] = True
 
-    
     new_mesh = refine_mesh(mesh, cell_markers)
     return new_mesh
 
@@ -662,31 +706,32 @@ def compute_cavity_volume(mesh, endo):
     X = dolfin.SpatialCoordinate(mesh)
     N = dolfin.FacetNormal(mesh)
     ffun = dolfin.MeshFunction("size_t", mesh, 2, mesh.domains())
-    ds = dolfin.Measure("exterior_facet", subdomain_data = ffun, domain = mesh)(endo)
-    vol_form = (-1.0/3.0)*dolfin.dot(X, N)*ds
+    ds = dolfin.Measure("exterior_facet", subdomain_data=ffun, domain=mesh)(endo)
+    vol_form = (-1.0 / 3.0) * dolfin.dot(X, N) * ds
     return dolfin.assemble(vol_form)
 
-    
+
 def save_transformation_matrix(ply_folder, reftime, h5name):
 
     output_params_name = os.path.join(ply_folder, "params_{}.p".format(reftime))
     import pickle
-    params = pickle.load(open(output_params_name, 'rb'))
+
+    params = pickle.load(open(output_params_name, "rb"))
     T = params["T_mat"]
-    
-        
+
     with h5py.File(h5name, "a") as h5file:
         h5file["{}/transformation_matrix".format(reftime)] = T
 
-            
+
 def save_round_off_buffer(round_off_buffer, patient, time):
 
     from collections import defaultdict
+
     # If the file allready exist, load it
     if os.path.isfile(ROUND_OFF_FILE):
-        with open(ROUND_OFF_FILE, 'r') as outfile:
+        with open(ROUND_OFF_FILE, "r") as outfile:
             dic = yaml.load(outfile)
-            d = defaultdict(dict,dic)
+            d = defaultdict(dict, dic)
     else:
         # Otherwise create a new one
         d = defaultdict(dict)
@@ -694,6 +739,5 @@ def save_round_off_buffer(round_off_buffer, patient, time):
     d[patient][str(time)] = str(round_off_buffer)
 
     # Save the file
-    with open(ROUND_OFF_FILE, 'w') as outfile:
+    with open(ROUND_OFF_FILE, "w") as outfile:
         yaml.dump(dict(d), outfile, default_flow_style=False)
-

@@ -23,13 +23,14 @@
 """
 import numpy as np
 
+
 def cartesian_to_prolate_ellipsoidal(x, y, z, a):
 
-    b1 = np.sqrt((x + a)**2 + y**2 + z**2)
-    b2 = np.sqrt((x - a)**2 + y**2 + z**2)
+    b1 = np.sqrt((x + a) ** 2 + y ** 2 + z ** 2)
+    b2 = np.sqrt((x - a) ** 2 + y ** 2 + z ** 2)
 
-    sigma = 1/(2.0*a)*(b1 + b2)
-    tau = 1/(2.0*a)*(b1 - b2)
+    sigma = 1 / (2.0 * a) * (b1 + b2)
+    tau = 1 / (2.0 * a) * (b1 - b2)
     phi = full_arctangent(z, y)
     mu = np.arccosh(sigma)
     nu = np.arccos(tau)
@@ -37,9 +38,9 @@ def cartesian_to_prolate_ellipsoidal(x, y, z, a):
 
 
 def prolate_ellipsoidal_to_cartesian(mu, nu, phi, a):
-    x = a*np.cosh(mu)*np.cos(nu)
-    y = a*np.sinh(mu)*np.sin(nu)*np.cos(phi)
-    z = a*np.sinh(mu)*np.sin(nu)*np.sin(phi)
+    x = a * np.cosh(mu) * np.cos(nu)
+    y = a * np.sinh(mu) * np.sin(nu) * np.cos(phi)
+    z = a * np.sinh(mu) * np.sin(nu) * np.sin(phi)
     return x, y, z
 
 
@@ -64,22 +65,20 @@ def set_region_borders(strain_regions, foc, strain_type):
     for region 1
     """
 
-    region_sph_coord = np.zeros((18, 4)) if strain_type == "18" \
-                       else np.zeros((16, 4))
-    rng = range(18) if strain_type == "18" \
-        else range(16)
+    region_sph_coord = np.zeros((18, 4)) if strain_type == "18" else np.zeros((16, 4))
+    rng = list(range(18)) if strain_type == "18" else list(range(16))
 
     # Mid and Basal
-    upper = range(4, 25, 5)
-    left = range(5)
-    right = range(20, 25)
-    lower = range(0, 21, 5)
+    upper = list(range(4, 25, 5))
+    left = list(range(5))
+    right = list(range(20, 25))
+    lower = list(range(0, 21, 5))
 
     # Apical
-    upper_ap = range(4, 35, 5)
-    left_ap = range(5)
-    right_ap = range(30, 35)
-    lower_ap = range(0, 31, 5)
+    upper_ap = list(range(4, 35, 5))
+    left_ap = list(range(5))
+    right_ap = list(range(30, 35))
+    lower_ap = list(range(0, 31, 5))
 
     for j in rng:
 
@@ -98,10 +97,10 @@ def set_region_borders(strain_regions, foc, strain_type):
                 p = strain_regions[j][k]
                 # Convert to prolate coordinates
                 T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                
+
                 # Divide by 5 to get the average value
-                region_sph_coord[j][0] += T[1]/5
-                    
+                region_sph_coord[j][0] += T[1] / 5
+
             # Left and right
             for side, coords in enumerate([left, right], start=1):
 
@@ -130,7 +129,7 @@ def set_region_borders(strain_regions, foc, strain_type):
                 for k in lower:
                     p = strain_regions[j][k]
                     T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                    region_sph_coord[j][3] += T[1]/5
+                    region_sph_coord[j][3] += T[1] / 5
 
             else:  # "strain_type" in ["16", "17"]
                 # The apical segments span more cells in the
@@ -143,72 +142,72 @@ def set_region_borders(strain_regions, foc, strain_type):
                         for k in range(0, 16, 5):
                             p = strain_regions[t][k]
                             T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                            region_sph_coord[j][3] += T[1]/13
+                            region_sph_coord[j][3] += T[1] / 13
 
                     # Add the last point
                     p = strain_regions[8][20]
                     T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                    region_sph_coord[j][3] += T[1]/13
+                    region_sph_coord[j][3] += T[1] / 13
 
                 elif j in range(9, 12):
                     for t in range(9, 12):
                         for k in range(0, 16, 5):
                             p = strain_regions[t][k]
                             T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                            region_sph_coord[j][3] += T[1]/13
+                            region_sph_coord[j][3] += T[1] / 13
 
                     # Add the last point
                     p = strain_regions[11][20]
                     T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                    region_sph_coord[j][3] += T[1]/13
+                    region_sph_coord[j][3] += T[1] / 13
                 else:
                     print("What!!!??")
-                
+
         # Apical segments
         if j >= 12:
-            
+
             # Upper
             if strain_type == "18":
 
                 # Choose the lower bound for the adjacent mid segment
-                region_sph_coord[j][0] = region_sph_coord[j-6][3]
-               
+                region_sph_coord[j][0] = region_sph_coord[j - 6][3]
+
             else:
                 if j in range(12, 14):
                     for t in range(12, 14):
                         for k in range(4, 30, 5):
                             p = strain_regions[t][k]
                             T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                            region_sph_coord[j][0] += T[1]/13
+                            region_sph_coord[j][0] += T[1] / 13
                     # Add the last point
                     p = strain_regions[13][34]
                     T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                    region_sph_coord[j][0] += T[1]/13
+                    region_sph_coord[j][0] += T[1] / 13
 
                 else:  # j in range(14,16)
                     for t in range(14, 16):
                         for k in range(4, 30, 5):
                             p = strain_regions[t][k]
                             T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                            region_sph_coord[j][0] += T[1]/13
+                            region_sph_coord[j][0] += T[1] / 13
                     # Add the last point
                     p = strain_regions[15][34]
                     T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                    region_sph_coord[j][0] += T[1]/13
+                    region_sph_coord[j][0] += T[1] / 13
 
             # Left and right
             for side, coords in enumerate([left_ap, right_ap], start=1):
 
                 if strain_type == "18":
-         
+
                     # Choose the bound for the adjacent mid segment
-                    region_sph_coord[j][side] = region_sph_coord[j-6][side]
+                    region_sph_coord[j][side] = region_sph_coord[j - 6][side]
 
                 else:
                     arr = []
                     for k in coords:
                         p = strain_regions[j][k]
-                        T= cartesian_to_prolate_ellipsoidal(*(p.tolist() +[foc]))
+                        T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
                         arr.append(T[2])
 
                     # Because of periodicity we might get values far appart,
@@ -231,15 +230,16 @@ def set_region_borders(strain_regions, foc, strain_type):
                 else:
                     p = strain_regions[j][k]
                     T = cartesian_to_prolate_ellipsoidal(*(p.tolist() + [foc]))
-                    region_sph_coord[j][3] += T[1]/7
-        
+                    region_sph_coord[j][3] += T[1] / 7
+
     return region_sph_coord
 
 
 def get_sector(regions, theta):
 
-    if not(np.count_nonzero(regions.T[1] <= regions.T[2])
-           >= 0.5*np.shape(regions)[0]):
+    if not (
+        np.count_nonzero(regions.T[1] <= regions.T[2]) >= 0.5 * np.shape(regions)[0]
+    ):
         raise ValueError("Surfaces are flipped")
 
     sectors = []
@@ -248,7 +248,7 @@ def get_sector(regions, theta):
         if r[1] == r[2]:
             sectors.append(i)
         else:
-                     
+
             if r[1] > r[2]:
                 if theta > r[1] or r[2] > theta:
                     sectors.append(i)
@@ -262,8 +262,9 @@ def get_sector(regions, theta):
 
 def get_level(regions, mu):
 
-    A = np.intersect1d(np.where((regions.T[3] <= mu))[0],
-                       np.where((mu <= regions.T[0]))[0])
+    A = np.intersect1d(
+        np.where((regions.T[3] <= mu))[0], np.where((mu <= regions.T[0]))[0]
+    )
     if len(A) == 0:
         return [np.shape(regions)[0] + 1]
     else:
@@ -310,9 +311,9 @@ def strain_region_number(T, regions):
 
 
 def strain_faces(region_number):
-    if region_number in range(1,13):
-        #Then we are at basal or mid meaning that
-        #each region has 9 points
+    if region_number in range(1, 13):
+        # Then we are at basal or mid meaning that
+        # each region has 9 points
         """
         4----9---14---19---24
         |    |    |    |    |
@@ -325,12 +326,11 @@ def strain_faces(region_number):
         0----5---10---15---20
         """
 
-        faces = [[i, i+1, i+5] for i in [i for i in range(20) if (i+1) % 5]]
-        for a in  [[i, i-4, i+1] for i in [i for i in range(5,25) if (i+1) % 5]]:
+        faces = [[i, i + 1, i + 5] for i in [i for i in range(20) if (i + 1) % 5]]
+        for a in [[i, i - 4, i + 1] for i in [i for i in range(5, 25) if (i + 1) % 5]]:
             faces.append(a)
 
-
-    elif region_number in range(13,17):
+    elif region_number in range(13, 17):
         """
         4----9---14---19---24---29---34
         |    |    |    |    |   |    |
@@ -343,19 +343,18 @@ def strain_faces(region_number):
         0----5---10---15---20---25---30
         """
 
-        faces = [[i, i+1, i+5] for i in [i for i in range(30) if (i+1) % 5]]
-        for a in  [[i, i-4, i+1] for i in [i for i in range(5,35) if (i+1) % 5]]:
+        faces = [[i, i + 1, i + 5] for i in [i for i in range(30) if (i + 1) % 5]]
+        for a in [[i, i - 4, i + 1] for i in [i for i in range(5, 35) if (i + 1) % 5]]:
             faces.append(a)
-
 
     if region_number == 17:
         faces = []
         for i in range(23):
-            faces.append([i, 24 + i, i+1])
-            faces.append([i+1, 24+i, 24+i+1])
-            faces.append([24+i, 48, 24+i+1])
-        faces.append([23,47,0])
-        faces.append([0,47,24])
-        faces.append([47,48,24])
+            faces.append([i, 24 + i, i + 1])
+            faces.append([i + 1, 24 + i, 24 + i + 1])
+            faces.append([24 + i, 48, 24 + i + 1])
+        faces.append([23, 47, 0])
+        faces.append([0, 47, 24])
+        faces.append([47, 48, 24])
 
     return np.array(faces)

@@ -17,13 +17,15 @@
 # along with FENICSHOTOOLS. If not, see <http://www.gnu.org/licenses/>.
 from dolfin import *
 import numpy as np
-from itertools import izip
-from generate_points import *
-from make_affine_mapping import *
-from reference_topology import *
+from functools import reduce
+
+from .generate_points import *
+from .make_affine_mapping import *
+from .reference_topology import *
 from scipy.spatial import cKDTree
 
 __all__ = ["gmsh2dolfin"]
+
 
 def _tabulate_all_gmsh_dofs(gmsh):
 
@@ -45,12 +47,12 @@ def _tabulate_all_gmsh_dofs(gmsh):
     nodes = gmsh.dof_coords()
     global_dofs = np.zeros(nodes.shape)
 
-    for cell_vert, cell_dofs in izip(nodes[cells], cells_dofs):
+    for cell_vert, cell_dofs in zip(nodes[cells], cells_dofs):
         # create the affine mapping
         A, b = make_affine_mapping(cell_ref_vert, cell_vert)
         # maps the dofs
-        dofs = cell_ref_dofs.dot(A.T) + np.array([b,]*cell_ref_dofs.shape[0])
-        global_dofs[cell_dofs,:] = dofs
+        dofs = cell_ref_dofs.dot(A.T) + np.array([b] * cell_ref_dofs.shape[0])
+        global_dofs[cell_dofs, :] = dofs
 
     return global_dofs
 
@@ -70,8 +72,8 @@ def gmsh2dolfin(gmsh, comm=None, use_coords=False):
 
     # The embedding space dimension in always 3
     # in gmsh, but not in DOLFIN.
-    mdim  = gmsh.topo_dim
-    gdim  = gmsh.geom_dim
+    mdim = gmsh.topo_dim
+    gdim = gmsh.geom_dim
     shape = gmsh.cell_shape()
     editor.open(mesh, shape, mdim, gdim)
 
@@ -82,14 +84,14 @@ def gmsh2dolfin(gmsh, comm=None, use_coords=False):
     dofs = gmsh.dof_coords()
     editor.init_vertices(len(vert))
     for dolfin_id, msh_id in enumerate(vert):
-        editor.add_vertex(dolfin_id, dofs[msh_id,:])
+        editor.add_vertex(dolfin_id, dofs[msh_id, :])
         msh2dolfin[msh_id] = dolfin_id
 
     # cells
     # translate gmsh ids to dolfin ids for each cell
     cells = np.vectorize(msh2dolfin.get, otypes=[np.uintp])(gmsh.cells())
     # cell vertices needs to be sorted (ufc assumption)
-    if shape not in [ "quadrilateral", "hexahedron" ]:
+    if shape not in ["quadrilateral", "hexahedron"]:
         cells.sort(axis=1)
     editor.init_cells(len(cells))
     for idx, vert in enumerate(cells):
@@ -104,24 +106,26 @@ def gmsh2dolfin(gmsh, comm=None, use_coords=False):
     # cells handled directly
     mesh.domains().init(3)
     for idx, m in enumerate(gmsh.entity_markers(0)):
-        if m == 0: continue
+        if m == 0:
+            continue
         if not mesh.domains().set_marker((idx, m), gmsh.topo_dim):
             raise RuntimeError("Something wrong during cell marking")
 
     # other entities
     for codim in range(1, gmsh.topo_dim + 1):
         entities = gmsh.entities(codim)
-        if entities is None: continue
+        if entities is None:
+            continue
         # map the numbering of the vertices
         ent = []
         for e in entities:
             try:
-                ent.append([ msh2dolfin[c] for c in e ])
+                ent.append([msh2dolfin[c] for c in e])
             except KeyError:
                 # we skip marked entities which are not belonging to
                 # the mesh (e.g. external points)
                 continue
-        ent = np.array(ent, dtype = np.uintp)
+        ent = np.array(ent, dtype=np.uintp)
         ent_dim = mdim - codim
         # to look for the entity we need the vertex to entity connectivity
         # map and the entity to cell map
@@ -133,11 +137,13 @@ def gmsh2dolfin(gmsh, comm=None, use_coords=False):
         # the entity id is obtained by intersecating all the entities
         # connected to the given vertices.
         # The result should always be one entity.
-        eids = np.concatenate([ reduce(np.intersect1d, map(vert_to_enti, e)) \
-                for e in ent ])
-        
-        for e, marker in izip(eids, gmsh.entity_markers(codim)):
-            if marker == 0: continue
+        eids = np.concatenate(
+            [reduce(np.intersect1d, list(map(vert_to_enti, e))) for e in ent]
+        )
+
+        for e, marker in zip(eids, gmsh.entity_markers(codim)):
+            if marker == 0:
+                continue
             # each cell containing the entity is marked
             for c in enti_to_cell(e):
                 mesh.domains().set_marker((e, marker), ent_dim)
@@ -183,4 +189,3 @@ def gmsh2dolfin(gmsh, comm=None, use_coords=False):
     #     phi.vector()[idx[:,i].copy()] = (displ[msh2ufc, i]).astype(np.float)
 
     # return Domain(phi), markers
-

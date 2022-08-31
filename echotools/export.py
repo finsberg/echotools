@@ -4,12 +4,14 @@ from textwrap import dedent
 from tvtk.array_handler import array2vtk, array2vtkPoints, array2vtkCellArray
 
 
-vtk_shapes = {1: {1: vtk.VTK_LINE,
-                  2: vtk.VTK_TRIANGLE,
-                  3: vtk.VTK_TETRA},
-              2: {1: vtk.VTK_QUADRATIC_EDGE,
-                  2: vtk.VTK_QUADRATIC_TRIANGLE,
-                  3: vtk.VTK_QUADRATIC_TETRA}}
+vtk_shapes = {
+    1: {1: vtk.VTK_LINE, 2: vtk.VTK_TRIANGLE, 3: vtk.VTK_TETRA},
+    2: {
+        1: vtk.VTK_QUADRATIC_EDGE,
+        2: vtk.VTK_QUADRATIC_TRIANGLE,
+        3: vtk.VTK_QUADRATIC_TETRA,
+    },
+}
 
 
 def to_grid(verts, faces):
@@ -54,7 +56,7 @@ def write_vtu(filename, grid):
         writer.SetInputData(grid)
     else:
         writer.SetInput(grid)
-        
+
     writer.SetFileName(filename)
     writer.Write()
 
@@ -78,7 +80,7 @@ def write_ply(fname, grid):
     grid : vtk.vtkPolyData
         The data
     """
-    
+
     writer = vtk.vtkPLYWriter()
     writer.SetFileName(fname)
     writer.SetInputData(grid)

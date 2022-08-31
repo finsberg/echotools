@@ -19,6 +19,7 @@ Module for saving and loading a geometry to and from a dolfin.HDF5File.
 # along with FENICSHOTOOLS. If not, see <http://www.gnu.org/licenses/>.
 try:
     import h5py
+
     has_h5py = True
 except:
     has_h5py = False
@@ -35,23 +36,33 @@ __all__ = ["save_geometry", "load_geometry", "save_function", "load_function"]
 # If dolfin compiled with petsc4py support we expect different types for the mpi_comm.
 mpi_comm_type = type(fenics.mpi_comm_world())
 str_repr_mpi_comm_type = mpi_comm_type.__name__
-rst_repr_mpi_comm_type = "petsc4py.PETSc.Comm" if fenics.has_petsc4py() \
-                         else "dolfin.MPI_Comm" 
+rst_repr_mpi_comm_type = (
+    "petsc4py.PETSc.Comm" if fenics.has_petsc4py() else "dolfin.MPI_Comm"
+)
 
-def save_geometry(comm, mesh, h5name, h5group='', markers=None,\
-                  overwrite_file=False, overwrite_group=True):
-    
+
+def save_geometry(
+    comm,
+    mesh,
+    h5name,
+    h5group="",
+    markers=None,
+    overwrite_file=False,
+    overwrite_group=True,
+):
+
     if not isinstance(comm, mpi_comm_type):
-        raise TypeError("expected  a '{}' for the first argument".format(\
-            str_repr_mpi_comm_type))
-    
+        raise TypeError(
+            "expected  a '{}' for the first argument".format(str_repr_mpi_comm_type)
+        )
+
     if not isinstance(mesh, Mesh):
         raise TypeError("expected  a 'ufl.Domain' for the second argument")
 
     if not isinstance(h5name, str):
         raise TypeError("expected a 'str' as the third argument")
 
-    if not(len(h5name)>3 and h5name[-3:]==".h5"):
+    if not (len(h5name) > 3 and h5name[-3:] == ".h5"):
         raise ValueError("expected 'h5name' argument to end with '.h5'")
 
     if not isinstance(h5group, str):
@@ -59,42 +70,46 @@ def save_geometry(comm, mesh, h5name, h5group='', markers=None,\
 
     markers = markers or {}
 
-    if not (isinstance(markers, dict), ):
-        raise TypeError("expected the 'markers' argument to be a 'dict' "\
-                        "with positive int as keys and a size 2 tuple with str "\
-                        "and a positive int as value.")
+    if not (isinstance(markers, dict),):
+        raise TypeError(
+            "expected the 'markers' argument to be a 'dict' "
+            "with positive int as keys and a size 2 tuple with str "
+            "and a positive int as value."
+        )
 
     file_mode = "a" if os.path.isfile(h5name) and not overwrite_file else "w"
 
     # IF we should append the file but overwrite the group we need to
     # check that the group does not exist. If so we need to open it in
     # h5py and delete it.
-    if file_mode == "a" and overwrite_group and h5group!="":
+    if file_mode == "a" and overwrite_group and h5group != "":
         if has_h5py:
             with h5py.File(h5name) as h5file:
                 if h5group in h5file:
                     debug("Deleting existing group: '{}'".format(h5group))
                     del h5file[h5group]
         else:
-            raise RuntimeError("Cannot overwrite group '{}'. "\
-                               "Need h5py for that.".format(h5group))
+            raise RuntimeError(
+                "Cannot overwrite group '{}'. " "Need h5py for that.".format(h5group)
+            )
 
     # Open the file for writing
     with HDF5File(comm, h5name, file_mode) as h5file:
-        ggroup = '{}/geometry'.format(h5group)
+        ggroup = "{}/geometry".format(h5group)
 
         # Save the mesh
-        mgroup = '{}/mesh'.format(ggroup)
+        mgroup = "{}/mesh".format(ggroup)
         h5file.write(mesh, mgroup)
 
         # Save the boundary markers
-        for marker, (name, dim) in markers.items():
-            dgroup = '{}/mesh/domain_{}'.format(ggroup, dim)
+        for marker, (name, dim) in list(markers.items()):
+            dgroup = "{}/mesh/domain_{}".format(ggroup, dim)
             if h5file.has_dataset(dgroup):
-                aname = 'marker_name_{}'.format(marker)
+                aname = "marker_name_{}".format(marker)
                 h5file.attributes(dgroup)[aname] = name
 
-save_geometry.func_doc = """
+
+save_geometry.__doc__ = """
     Save a geometry to a h5 file
 
     *Arguments*
@@ -110,15 +125,18 @@ save_geometry.func_doc = """
         A dict with marker information. Expects positiv int as keys and a size
         2 tuple with str and a positive int as value.
         
-    """.format(rst_repr_mpi_comm_type)
+    """.format(
+    rst_repr_mpi_comm_type
+)
 
 
-def load_geometry(comm, h5name, h5group=''):
-    
+def load_geometry(comm, h5name, h5group=""):
+
     if not isinstance(comm, mpi_comm_type):
-        raise TypeError("expected  a '{}' for the first argument".format(\
-            str_repr_mpi_comm_type))
-    
+        raise TypeError(
+            "expected  a '{}' for the first argument".format(str_repr_mpi_comm_type)
+        )
+
     if not isinstance(h5name, str):
         raise TypeError("expected a 'str' as the second argument")
 
@@ -129,44 +147,49 @@ def load_geometry(comm, h5name, h5group=''):
         raise TypeError("expected the third argument to be a 'str'")
 
     # Open the file
-    with HDF5File(comm, h5name, 'r') as h5file:
+    with HDF5File(comm, h5name, "r") as h5file:
         if h5group and not h5file.has_dataset(h5group):
-            raise ValueError("The '{}' file does not have the '{}' dataset".\
-                             format(h5name, h5group))
+            raise ValueError(
+                "The '{}' file does not have the '{}' dataset".format(h5name, h5group)
+            )
 
-        ggroup = '{}/geometry'.format(h5group)
+        ggroup = "{}/geometry".format(h5group)
         if not h5file.has_dataset(ggroup):
-            raise ValueError("Expected the '{}' file to have the '{}' dataset".\
-                             format(h5name, ggroup))
+            raise ValueError(
+                "Expected the '{}' file to have the '{}' dataset".format(h5name, ggroup)
+            )
 
-        mgroup = '{}/mesh'.format(ggroup)
+        mgroup = "{}/mesh".format(ggroup)
         if not h5file.has_dataset(mgroup):
-            raise ValueError("Expected the '{}' file to have the '{}' dataset".\
-                             format(h5name, mgroup))
+            raise ValueError(
+                "Expected the '{}' file to have the '{}' dataset".format(h5name, mgroup)
+            )
 
         # Read the mesh
         mesh = Mesh(comm)
         h5file.read(mesh, mgroup, False)
-       
+
         # Load the boundary markers
         markers = {}
-        for dim in range(mesh.ufl_domain().topological_dimension()+1):
-            dgroup = '{}/mesh/domain_{}'.format(ggroup, dim)
+        for dim in range(mesh.ufl_domain().topological_dimension() + 1):
+            dgroup = "{}/mesh/domain_{}".format(ggroup, dim)
 
             # If dataset is not present
             if not h5file.has_dataset(dgroup):
                 continue
 
-            for aname in h5file.attributes(dgroup).str().strip().split(' '):
-                m = re.match('marker_name_(\d+)', aname)
-                if not m: continue
+            for aname in h5file.attributes(dgroup).str().strip().split(" "):
+                m = re.match("marker_name_(\d+)", aname)
+                if not m:
+                    continue
                 marker = m.group(1)
-                name = h5file.attributes(dgroup)['marker_name_{}'.format(marker)]
+                name = h5file.attributes(dgroup)["marker_name_{}".format(marker)]
                 markers[int(marker)] = (name, dim)
 
     return mesh, markers
 
-load_geometry.func_doc = """
+
+load_geometry.__doc__ = """
     Load a dolfin mesh stored in a h5 file
 
     *Arguments*
@@ -176,22 +199,27 @@ load_geometry.func_doc = """
         The name of the h5 file that the domain should be load from.
       h5group (str)
         A h5 group name the domain optionally should be load from.
-    """.format(rst_repr_mpi_comm_type)
+    """.format(
+    rst_repr_mpi_comm_type
+)
 
-def save_function(comm, func, h5name, h5group='', index=0,\
-                  overwrite_file=False, overwrite_group=True):
-    
+
+def save_function(
+    comm, func, h5name, h5group="", index=0, overwrite_file=False, overwrite_group=True
+):
+
     if not isinstance(comm, mpi_comm_type):
-        raise TypeError("expected  a '{}' for the first argument".format(\
-            str_repr_mpi_comm_type))
-    
+        raise TypeError(
+            "expected  a '{}' for the first argument".format(str_repr_mpi_comm_type)
+        )
+
     if not isinstance(func, Function):
         raise TypeError("expected  a 'dolfin.Function' for the second argument")
 
     if not isinstance(h5name, str):
         raise TypeError("expected a 'str' as the third argument")
 
-    if not(len(h5name)>3 and h5name[-3:]==".h5"):
+    if not (len(h5name) > 3 and h5name[-3:] == ".h5"):
         raise ValueError("expected 'h5name' argument to end with '.h5'")
 
     if not isinstance(h5group, str):
@@ -199,12 +227,13 @@ def save_function(comm, func, h5name, h5group='', index=0,\
 
     if not isinstance(index, int) or index < 0:
         raise TypeError("expected a positive 'int' for the fifth argument")
-    
+
     # Open a file
     file_mode = "a" if os.path.isfile(h5name) and not overwrite_file else "w"
 
-    data_name = "{}_{0:03d}".format(h5group, index) \
-                if h5group else "data_{0:03d}".format(index)
+    data_name = (
+        "{}_{0:03d}".format(h5group, index) if h5group else "data_{0:03d}".format(index)
+    )
 
     # If no h5py we just save the function directly
     if not has_h5py:
@@ -216,11 +245,11 @@ def save_function(comm, func, h5name, h5group='', index=0,\
 
     # If h5py we create a link to function data that does not change
     else:
-    
+
         # IF we should append the file but overwrite the group we need to
         # check that the group does not exist. If so we need to open it in
         # h5py and delete it.
-        if file_mode == "a" and overwrite_group and data_name!="":
+        if file_mode == "a" and overwrite_group and data_name != "":
             with h5py.File(h5name) as h5file:
                 if data_name in h5file:
                     del h5file[data_name]
@@ -239,7 +268,7 @@ def save_function(comm, func, h5name, h5group='', index=0,\
 
             # Global hash (same on all processes), 10 digits long
             global_hash = MPI.sum(comm, int(local_hash.hexdigest(), 16))
-            global_hash = "hash_" + str(int(global_hash%1e10)).zfill(10)
+            global_hash = "hash_" + str(int(global_hash % 1e10)).zfill(10)
 
             # Create hashed named for writing the function the first time
             if not h5file.has_dataset(global_hash):
@@ -250,8 +279,10 @@ def save_function(comm, func, h5name, h5group='', index=0,\
 
                 # If hashed data set already excist just write the vector
                 if h5file.has_dataset(data_name):
-                    raise IOError("Cannot write dataset '{}'. It "\
-                                  "already excist.".format(data_name))
+                    raise IOError(
+                        "Cannot write dataset '{}'. It "
+                        "already excist.".format(data_name)
+                    )
                 debug("Write vector to '{}' dataset.".format(data_name))
                 h5file.write(func.vector(), "{}/vector_0".format(data_name))
 
@@ -262,7 +293,7 @@ def save_function(comm, func, h5name, h5group='', index=0,\
 
                 # Get dataset to link to
                 link_to = h5file[global_hash]
-                
+
                 # If data set created for the first time
                 if data_name not in h5file:
                     link_from = h5file.create_group(data_name)
@@ -274,14 +305,15 @@ def save_function(comm, func, h5name, h5group='', index=0,\
                     link_from = h5file[data_name]
 
                 debug("Link '{}' datasets in h5 file.".format(data_name))
-                for dname in ['x_cell_dofs', 'cell_dofs', 'cells']:
+                for dname in ["x_cell_dofs", "cell_dofs", "cells"]:
 
                     # Create a hard link to the Function data
                     link_from[dname] = link_to[dname]
-                
+
         MPI.barrier(comm)
 
-save_function.func_doc = """
+
+save_function.__doc__ = """
     Save a dolfin Function to an h5 file
 
     *Arguments*
@@ -295,20 +327,24 @@ save_function.func_doc = """
         A h5 group name the function optionally should be saved from.
       index (int)
         A saving index
-    """.format(rst_repr_mpi_comm_type)
+    """.format(
+    rst_repr_mpi_comm_type
+)
 
-def load_function(comm, func, h5name, h5group='', index=0):
+
+def load_function(comm, func, h5name, h5group="", index=0):
     if not isinstance(comm, mpi_comm_type):
-        raise TypeError("expected  a '{}' for the first argument".format(\
-            str_repr_mpi_comm_type))
-    
+        raise TypeError(
+            "expected  a '{}' for the first argument".format(str_repr_mpi_comm_type)
+        )
+
     if not isinstance(func, Function):
         raise TypeError("expected  a 'dolfin.Function' for the second argument")
 
     if not isinstance(h5name, str):
         raise TypeError("expected a 'str' as the third argument")
 
-    if not(len(h5name)>3 and h5name[-3:]==".h5"):
+    if not (len(h5name) > 3 and h5name[-3:] == ".h5"):
         raise ValueError("expected 'h5name' argument to end with '.h5'")
 
     if not isinstance(h5group, str):
@@ -316,17 +352,18 @@ def load_function(comm, func, h5name, h5group='', index=0):
 
     if not isinstance(index, int) or index < 0:
         raise TypeError("expected a positive 'int' for the fifth argument")
-    
-    data_name = "{}_{0:03d}".format(h5group, index) \
-                if h5group else "data_{0:03d}".format(index)
 
-    
+    data_name = (
+        "{}_{0:03d}".format(h5group, index) if h5group else "data_{0:03d}".format(index)
+    )
+
     # Write file without link
     with HDF5File(comm, h5name, "r") as h5file:
         debug("Load function from '{}' dataset.".format(data_name))
         h5file.read(func, data_name)
-    
-load_function.func_doc = """
+
+
+load_function.__doc__ = """
     Load a dolfin Function to a h5 file
 
     *Arguments*
@@ -340,4 +377,6 @@ load_function.func_doc = """
         A h5 group name the function optionally should be loaded from.
       index (int)
         A saving index
-    """.format(rst_repr_mpi_comm_type)
+    """.format(
+    rst_repr_mpi_comm_type
+)

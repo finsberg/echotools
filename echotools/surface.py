@@ -1,6 +1,8 @@
 import os
 import numpy as np
 
+from . import export
+
 
 def map_plane_to_xy_plane(c):
     """
@@ -16,24 +18,26 @@ def map_plane_to_xy_plane(c):
     """
     T_rot_xy = np.eye(4)
 
-    abc = c[0]**2+c[1]**2+c[2]**2
-    ab = c[0]**2+c[1]**2
-    A = c[0]/np.sqrt(abc)
-    B = c[1]/np.sqrt(abc)
-    C = c[2]/np.sqrt(abc)
+    abc = c[0] ** 2 + c[1] ** 2 + c[2] ** 2
+    ab = c[0] ** 2 + c[1] ** 2
+    A = c[0] / np.sqrt(abc)
+    B = c[1] / np.sqrt(abc)
+    C = c[2] / np.sqrt(abc)
 
     # This formula can be found here:
     # http://math.stackexchange.com/questions/1435018/change-a-3d-plane-to-xy-plane?rq=1
     # Shold perhaps derrive this myself
-    T_rot_xy[:3, 0] = [c[1]**2/ab + (1-c[1]**2/ab)*C,
-                       -c[0]*c[1]*(1-C)/ab,
-                       -A]
-    T_rot_xy[:3, 1] = [-c[0]*c[1]*(1-C)/ab,
-                       c[0]**2/ab + (1-c[0]**2/ab)*C,
-                       -B]
-    T_rot_xy[:3, 2] = [A,
-                       B,
-                       C]
+    T_rot_xy[:3, 0] = [
+        c[1] ** 2 / ab + (1 - c[1] ** 2 / ab) * C,
+        -c[0] * c[1] * (1 - C) / ab,
+        -A,
+    ]
+    T_rot_xy[:3, 1] = [
+        -c[0] * c[1] * (1 - C) / ab,
+        c[0] ** 2 / ab + (1 - c[0] ** 2 / ab) * C,
+        -B,
+    ]
+    T_rot_xy[:3, 2] = [A, B, C]
     return T_rot_xy.T
 
 
@@ -44,7 +48,7 @@ def planefit(pts):
 
     
     """
-    
+
     npts = pts.shape[0]
 
     x = np.array([pts[i][0] for i in range(npts)])
@@ -80,15 +84,15 @@ def strain_mesh_coordinates(strain_mesh):
     strain_region_coords = []
     # Loop over the regions
     for region in range(1, 18):
-        
+
         # Basal segements
         if region in range(1, 7):
 
             y_start = 10
             y_end = 15
-        
-            x_start = 4*(region-1)
-            x_end = 4*region +1
+
+            x_start = 4 * (region - 1)
+            x_end = 4 * region + 1
 
         # Mid segement
         elif region in range(7, 13):
@@ -96,8 +100,8 @@ def strain_mesh_coordinates(strain_mesh):
             y_start = 6
             y_end = 11
 
-            x_start = 4*(region-7)
-            x_end = 4*(region-6) + 1
+            x_start = 4 * (region - 7)
+            x_end = 4 * (region - 6) + 1
 
         # Apical segments
         elif region in range(13, 17):
@@ -105,21 +109,21 @@ def strain_mesh_coordinates(strain_mesh):
             y_start = 2
             y_end = 7
 
-            x_start = 6*(region-13)
-            x_end = 6*(region-12) + 1
+            x_start = 6 * (region - 13)
+            x_end = 6 * (region - 12) + 1
 
         # Apex
         else:
             x_start = 0
             x_end = 24
-            
+
             y_start = 0
             y_end = 3
 
-        dx = x_end-x_start
-        dy = y_end-y_start
+        dx = x_end - x_start
+        dy = y_end - y_start
 
-        strain_points = np.ones((dx*dy, 3))
+        strain_points = np.ones((dx * dy, 3))
         t = 0
         for x in range(x_start, x_end):
             for y in range(y_start, y_end):
@@ -143,8 +147,7 @@ def strain_mesh_coordinates(strain_mesh):
     return strain_region_coords
 
 
-def get_rotation_matrix(strain_points_orig,
-                        return_plane=False, second_layer=False):
+def get_rotation_matrix(strain_points_orig, return_plane=False, second_layer=False):
     """
     Given the strain mesh, find the rotation matrix
     which aligns the base with the yz plane and with
@@ -155,7 +158,7 @@ def get_rotation_matrix(strain_points_orig,
     # Take out the points that defines the base
     # USE SECOND LAYER TO AVOID SEGMENTATION ERRORS AT THE BASE
     if second_layer:
-        plane_nodes = strain_points_orig[-48: -24, :3]
+        plane_nodes = strain_points_orig[-48:-24, :3]
     else:
         plane_nodes = strain_points_orig[-24:, :3]
 
@@ -183,8 +186,7 @@ def get_rotation_matrix(strain_points_orig,
         return T_rot
 
 
-def get_translation_matrix(strain_points_rot, endo_verts_rot,
-                           round_off_buffer=0.0):
+def get_translation_matrix(strain_points_rot, endo_verts_rot, round_off_buffer=0.0):
     """
     Create a translation matrix which makes the basal plane of the
     strain mesh align with x = 0. The offset in the y and z direction
@@ -198,17 +200,19 @@ def get_translation_matrix(strain_points_rot, endo_verts_rot,
     center_offsets = np.mean(endo_verts_rot, 0)[:3]
 
     # Make the basal plane the yz-plane
-    center_offsets[0] \
-        = np.mean(strain_points_rot[-24:, :3], axis=0)[0] - round_off_buffer
-      
+    center_offsets[0] = (
+        np.mean(strain_points_rot[-24:, :3], axis=0)[0] - round_off_buffer
+    )
+
     # Create translation matrix
     T_trans = np.eye(4)
     T_trans[:3, -1] = -center_offsets
     return T_trans
 
 
-def get_geometric_matrix(strain_mesh, endo_verts_orig, round_off_buffer=0.0,
-                         second_layer=False):
+def get_geometric_matrix(
+    strain_mesh, endo_verts_orig, round_off_buffer=0.0, second_layer=False
+):
     """Get matrix transformtaion of surfaces that
     transform the surfaces to lie with the base at
     x = 0, and the apex pointing in the postive
@@ -226,18 +230,21 @@ def get_geometric_matrix(strain_mesh, endo_verts_orig, round_off_buffer=0.0,
     """
 
     endo_verts = np.ones((endo_verts_orig.shape[0], 4))
-    endo_verts[:, :3] = endo_verts_orig
+    if np.shape(endo_verts_orig)[1] == 4:
+        endo_verts[:] = endo_verts_orig
+    else:
+        endo_verts[:, :3] = endo_verts_orig    
+        
 
     # Put strain mesh in an easier format to handle
-    strain_points_orig = np.ones((24*15, 4))
+    strain_points_orig = np.ones((24 * 15, 4))
     for i in range(3):
         strain_points_orig[:, i] = strain_mesh[:, :, i].T.ravel()
 
     # Get rotation matrix for aligning the base with yz-plane
     # and apex pointing in the postive x-direction
     return_plane = True
-    T_rot, c = get_rotation_matrix(strain_points_orig, return_plane,
-                                   second_layer)
+    T_rot, c = get_rotation_matrix(strain_points_orig, return_plane, second_layer)
 
     # Rotate strain mesh
     strain_points_rot = T_rot.dot(strain_points_orig.T).T
@@ -246,11 +253,13 @@ def get_geometric_matrix(strain_mesh, endo_verts_orig, round_off_buffer=0.0,
     try:
         endo_verts_rot = T_rot.dot(endo_verts.T).T
     except:
-        from IPython import embed; embed()
+        from IPython import embed
+
+        embed()
     # Get traslation matrix
-    T_trans = get_translation_matrix(strain_points_rot,
-                                     endo_verts_rot,
-                                     round_off_buffer)
+    T_trans = get_translation_matrix(
+        strain_points_rot, endo_verts_rot, round_off_buffer
+    )
 
     # Total geometric operation
     T_tot = T_trans.dot(T_rot)
@@ -268,8 +277,7 @@ def get_geometric_matrix(strain_mesh, endo_verts_orig, round_off_buffer=0.0,
     return T_tot
 
 
-def transform_surfaces(round_off, endo_verts, epi_verts,
-                       strain_mesh, **kwargs):
+def transform_surfaces(round_off, endo_verts, epi_verts, strain_mesh, **kwargs):
     """Transform the surfaces to that the long axis points
     along the x-axis, the base located at x = 0, and apex at x>0.
 
@@ -282,7 +290,7 @@ def transform_surfaces(round_off, endo_verts, epi_verts,
     :rtype: dict
 
     """
-    
+
     # Put the data into 4-dimensional matrices for easier manipulation
     endo_verts_orig = np.ones((endo_verts.shape[0], 4))
     endo_verts_orig[:, :3] = np.copy(endo_verts)
@@ -290,14 +298,15 @@ def transform_surfaces(round_off, endo_verts, epi_verts,
     epi_verts_orig = np.ones((epi_verts.shape[0], 4))
     epi_verts_orig[:, :3] = np.copy(epi_verts)
 
-    strain_points_orig = np.ones((24*15, 4))
-    strain_points_orig[:, :3] = np.reshape(strain_mesh, (24*15, 3))
+    strain_points_orig = np.ones((24 * 15, 4))
+    strain_points_orig[:, :3] = np.reshape(strain_mesh, (24 * 15, 3))
 
     strain_mesh_orig = np.copy(strain_mesh)
 
     # Get transformation matrix
-    T = get_geometric_matrix(strain_mesh_orig, endo_verts_orig,
-                             round_off, second_layer=False)
+    T = get_geometric_matrix(
+        strain_mesh_orig, endo_verts_orig, round_off, second_layer=False
+    )
 
     # Transform the data
     # The surfaces
@@ -305,17 +314,19 @@ def transform_surfaces(round_off, endo_verts, epi_verts,
     epi_verts = T.dot(epi_verts_orig.T).T[:, :3]
 
     # The strain mesh
-    strain_points = T.dot(strain_points_orig.T).T[:,:3]
+    strain_points = T.dot(strain_points_orig.T).T[:, :3]
     strain_mesh = np.reshape(strain_points, (24, 15, 3))
 
-    data = {"T": T,
-            "endo_verts": endo_verts,
-            "epi_verts": epi_verts,
-            "strain_mesh": strain_mesh}
+    data = {
+        "T": T,
+        "endo_verts": endo_verts,
+        "epi_verts": epi_verts,
+        "strain_mesh": strain_mesh,
+    }
 
     kwargs.update(**data)
 
-    kwargs["strain_coords"] = get_strain_region_coordinates(data["strain_mesh"])
+    kwargs["strain_coords"] = strain_mesh_coordinates(data["strain_mesh"])
 
     return kwargs
 
@@ -324,8 +335,7 @@ class WrongGeometryException(Exception):
     pass
 
 
-def compute_focal_point(original_long_axis_endo,
-                        endo_verts, epi_verts, **kwargs):
+def compute_focal_point(original_long_axis_endo, endo_verts, epi_verts, **kwargs):
     """Copmute the focal point based on approximating the
     endocardial surfaces as a ellipsoidal cap.
     
@@ -343,29 +353,28 @@ def compute_focal_point(original_long_axis_endo,
     """
 
     long_axis_endo = np.max(endo_verts, 0)[0]
-    short_axis_endo = np.max(np.max(endo_verts, 0)[1:] -
-                             np.min(endo_verts, 0)[1:])
+    short_axis_endo = np.max(np.max(endo_verts, 0)[1:] - np.min(endo_verts, 0)[1:])
 
     # Cut is probably to big
-    if (long_axis_endo < short_axis_endo):
+    if long_axis_endo < short_axis_endo:
         # But it might be possible
         # A prolate ellipsoid is probably not
         # the best model though
 
         # Just return something
-        return long_axis_endo/2.0
+        return long_axis_endo / 2.0
         # raise WrongGeometryException("Cut is too large")
 
     # No cut has been made
     if original_long_axis_endo - long_axis_endo < 0.5:
         raise WrongGeometryException("No cut has been made")
 
-    foc_endo = np.sqrt(long_axis_endo**2 - short_axis_endo**2)
+    foc_endo = np.sqrt(long_axis_endo ** 2 - short_axis_endo ** 2)
 
     return foc_endo
 
 
-def save_surfaces_to_ply(plydir, time,  data, postfix=""):
+def save_surfaces_to_ply(plydir, time, data, postfix=""):
     """Save the surfaces to *.ply format which can be used as
     input to Gmsh later
 
@@ -380,13 +389,13 @@ def save_surfaces_to_ply(plydir, time,  data, postfix=""):
     epi_out = os.path.join(plydir, "epi_lv_{}{}.ply".format(time, postfix))
     endo_out = os.path.join(plydir, "endo_lv_{}{}.ply".format(time, postfix))
 
-    writeplyfile(endo_out, data["endo_verts"]*1.,
-                 data["endo_faces"]+1)
-    writeplyfile(epi_out, data["epi_verts"]*1.,
-                 data["epi_faces"]+1)
+    export.write_ply(endo_out, export.to_polydata(data["endo_verts"],
+                                                  data["endo_faces"]))
+    export.write_ply(epi_out, export.to_polydata(data["epi_verts"],
+                                                 data["epi_faces"]))
 
 
-def cut_off_base(faces, points_in, cut_off_point=.0):
+def cut_off_base(faces, points_in, cut_off_point=0.0):
     """Cut off x-values less than cut_off_point
     Written by Sjur Gjerald
     """
@@ -400,96 +409,108 @@ def cut_off_base(faces, points_in, cut_off_point=.0):
         # Cut based on x-coor
         local_x = points[faces[iii, :].astype(int), 0]
         is_positive = local_x > cut_off_point
-        
+
         if all(is_positive):
             faces_red.append(faces[iii, :])
         elif any(is_positive):
             # Create new points at instersection x=0
             point1 = np.zeros(3)
             point2 = np.zeros(3)
-            
+
             # Count number of negative vertices
             if np.sum(is_positive) == 1:
                 jjj = np.argmax(local_x)
             else:
                 jjj = np.argmin(local_x)
-            
-            # Move along edges and cut at x=0
-            d1 = points[faces[iii, (jjj+1) % 3].astype(int), 0] \
-                - points[faces[iii, jjj].astype(int), 0]
-            d2 = points[faces[iii, (jjj+2) % 3].astype(int), 0] \
-                - points[faces[iii, jjj].astype(int), 0]
 
-            
-            if d1 != 0.0: 
-                t1 = - points[faces[iii, jjj].astype(int), 0]/d1
+            # Move along edges and cut at x=0
+            d1 = (
+                points[faces[iii, (jjj + 1) % 3].astype(int), 0]
+                - points[faces[iii, jjj].astype(int), 0]
+            )
+            d2 = (
+                points[faces[iii, (jjj + 2) % 3].astype(int), 0]
+                - points[faces[iii, jjj].astype(int), 0]
+            )
+
+            if d1 != 0.0:
+                t1 = -points[faces[iii, jjj].astype(int), 0] / d1
                 in_edge1 = (t1 >= 0.0) * (t1 <= 1.0)
             else:
                 in_edge1 = False
             if d2 != 0.0:
-                t2 = - points[faces[iii,jjj].astype(int),0]/d2
-                in_edge2 = (t2>=0.0)*(t2<=1.0)
+                t2 = -points[faces[iii, jjj].astype(int), 0] / d2
+                in_edge2 = (t2 >= 0.0) * (t2 <= 1.0)
             else:
                 in_edge2 = False
 
-            
-            if not in_edge1: t1 = 1.0
-            if not in_edge2: t2 = 1.0
+            if not in_edge1:
+                t1 = 1.0
+            if not in_edge2:
+                t2 = 1.0
             # Fill in y and z coordinates of new point
             for kk in range(2):
-                p1 = points[faces[iii,jjj].astype(int),kk+1]*(1.-t1)+points[faces[iii,(jjj+1)%3].astype(int),kk+1]*t1
-                p2 = points[faces[iii,jjj].astype(int),kk+1]*(1.-t2)+points[faces[iii,(jjj+2)%3].astype(int),kk+1]*t2
-                
-                point1[kk+1]=p1
-                point2[kk+1]=p2
-            
+                p1 = (
+                    points[faces[iii, jjj].astype(int), kk + 1] * (1.0 - t1)
+                    + points[faces[iii, (jjj + 1) % 3].astype(int), kk + 1] * t1
+                )
+                p2 = (
+                    points[faces[iii, jjj].astype(int), kk + 1] * (1.0 - t2)
+                    + points[faces[iii, (jjj + 2) % 3].astype(int), kk + 1] * t2
+                )
+
+                point1[kk + 1] = p1
+                point2[kk + 1] = p2
+
             if len(added_points):
-                duplicate_index1=np.where(np.sqrt(np.sum((point1-added_points)**2,axis=1))<1e-15)[0]
-                duplicate_index2=np.where(np.sqrt(np.sum((point2-added_points)**2,axis=1))<1e-15)[0]
-            
+                duplicate_index1 = np.where(
+                    np.sqrt(np.sum((point1 - added_points) ** 2, axis=1)) < 1e-15
+                )[0]
+                duplicate_index2 = np.where(
+                    np.sqrt(np.sum((point2 - added_points) ** 2, axis=1)) < 1e-15
+                )[0]
+
             if len(duplicate_index1):
-                new_index1 = len(points)+int(duplicate_index1[0])
-            else: 
-                new_index1 = len(points)+len(added_points)
+                new_index1 = len(points) + int(duplicate_index1[0])
+            else:
+                new_index1 = len(points) + len(added_points)
                 added_points.append(point1)
-                
+
             if len(duplicate_index2):
-                new_index2 = len(points)+int(duplicate_index2[0])
-            else: 
-                new_index2 = len(points)+len(added_points)
+                new_index2 = len(points) + int(duplicate_index2[0])
+            else:
+                new_index2 = len(points) + len(added_points)
                 added_points.append(point2)
 
-            if np.sum(is_positive)==1:
+            if np.sum(is_positive) == 1:
                 # If one positive vertices -> create one triangle
-                new_face = faces[iii,:].astype(int)
-                new_face[(jjj+1)%3] = new_index1
-                new_face[(jjj+2)%3] = new_index2
+                new_face = faces[iii, :].astype(int)
+                new_face[(jjj + 1) % 3] = new_index1
+                new_face[(jjj + 2) % 3] = new_index2
                 faces_red.append(new_face)
             else:
                 # If two positive vertices -> create two triangles
-                new_face1 = faces[iii,:].astype(int)
+                new_face1 = faces[iii, :].astype(int)
                 new_face1[jjj] = new_index1
-                new_face2 = faces[iii,:].astype(int)
+                new_face2 = faces[iii, :].astype(int)
                 new_face2[jjj] = new_index2
-                new_face2[(jjj+1)%3] = new_index1
-                
+                new_face2[(jjj + 1) % 3] = new_index1
+
                 faces_red.append(new_face1)
                 faces_red.append(new_face2)
-            
-            
+
     # Set all new points
     # Duplicates have NOT been removed
-    
+
     if len(added_points):
-        points = np.vstack((points,np.asarray(added_points)))
-    
+        points = np.vstack((points, np.asarray(added_points)))
+
     faces_red = np.asarray(faces_red).astype(int)
-    
+
     return faces_red, points
 
 
-def remove_base(endo_faces, endo_verts, epi_faces,
-                epi_verts, **kwargs):
+def remove_base(endo_faces, endo_verts, epi_faces, epi_verts, **kwargs):
     """Remove base (points below the x = 0 plane)
     from endocardial and epicardial surfaces
 
@@ -502,21 +523,18 @@ def remove_base(endo_faces, endo_verts, epi_faces,
 
     """
 
-   
     endo_faces, endo_verts = cut_off_base(endo_faces, endo_verts)
     epi_faces, epi_verts = cut_off_base(epi_faces, epi_verts)
-    
 
-    data = {"endo_verts": endo_verts,
-            "epi_verts": epi_verts,
-            "endo_faces": endo_faces,
-            "epi_faces": epi_faces}
+    data = {
+        "endo_verts": endo_verts,
+        "epi_verts": epi_verts,
+        "endo_faces": endo_faces,
+        "epi_faces": epi_faces,
+    }
 
-
-   
     kwargs.update(**data)
-    
-    
+
     return kwargs
 
 
@@ -539,7 +557,6 @@ def smooth_surface_gamer(data):
     else:
         logger.info("Smooth surfaces using GAMer")
 
-
     for layer in ["endo", "epi"]:
         verts = data["{}_verts".format(layer)]
         faces = data["{}_faces".format(layer)]
@@ -547,17 +564,16 @@ def smooth_surface_gamer(data):
         gmesh = gamer.SurfaceMesh(len(verts), len(faces))
 
         for i, bverts in enumerate(verts):
-            
+
             gvert = gmesh.vertex(i)
             gvert.x, gvert.y, gvert.z = np.array(bverts, dtype=float)
-            gvert.sel=True
-    
-    
+            gvert.sel = True
+
         for i, bface in enumerate(faces):
 
             gface = gmesh.face(i)
-            gface.a, gface.b, gface.c = tuple(map(int,bface))
-            gface.sel=True
+            gface.a, gface.b, gface.c = tuple(map(int, bface))
+            gface.sel = True
 
         # Use default options for now
         gmesh.smooth()
@@ -566,10 +582,12 @@ def smooth_surface_gamer(data):
         gmesh.normal_smooth()
         gmesh.smooth()
 
-        new_verts = np.asarray([(gvert.x, gvert.y, gvert.z) for gvert in gmesh.vertices()])
+        new_verts = np.asarray(
+            [(gvert.x, gvert.y, gvert.z) for gvert in gmesh.vertices()]
+        )
         new_faces = np.asarray([(gface.a, gface.b, gface.c) for gface in gmesh.faces()])
 
         data["{}_verts".format(layer)] = new_verts
         data["{}_faces".format(layer)] = new_faces
-        
+
     return data

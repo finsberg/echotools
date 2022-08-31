@@ -17,33 +17,36 @@ def fun_to_xdmf(fun, fname, name="function"):
 
     if fun.value_size() == 1:
         nverts = len(fun.vector())
-        fun_str = xdmf.scalar_attribute.format(name=name,
-                                               nverts=nverts,
-                                               center="Node",
-                                               h5group="/".join([name,
-                                                                 "vector"]),
-                                               dim=1,
-                                               h5name=os.path.basename(h5name))
+        fun_str = xdmf.scalar_attribute.format(
+            name=name,
+            nverts=nverts,
+            center="Node",
+            h5group="/".join([name, "vector"]),
+            dim=1,
+            h5name=os.path.basename(h5name),
+        )
     else:
-        nverts = int(len(fun.vector())/dim)
-        fun_str = xdmf.vector_attribute.format(name=name,
-                                               nverts=nverts,
-                                               dim=dim,
-                                               h5group="/".join([name,
-                                                                 "vector"]),
-                                               center="Node",
-                                               h5name=os.path.basename(h5name))
-        
+        nverts = int(len(fun.vector()) / dim)
+        fun_str = xdmf.vector_attribute.format(
+            name=name,
+            nverts=nverts,
+            dim=dim,
+            h5group="/".join([name, "vector"]),
+            center="Node",
+            h5name=os.path.basename(h5name),
+        )
+
     fun_top = xdmf.topology_polyvert.format(nverts=nverts)
-    fun_geo = xdmf.geometry.format(nverts=nverts,
-                                   dim=dim,
-                                   coords="XYZ",
-                                   h5group="/".join([name, "coordinates"]),
-                                   h5name=os.path.basename(h5name))
+    fun_geo = xdmf.geometry.format(
+        nverts=nverts,
+        dim=dim,
+        coords="XYZ",
+        h5group="/".join([name, "coordinates"]),
+        h5name=os.path.basename(h5name),
+    )
 
     fun_entry = xdmf.entry.format(frame=fun_geo + fun_top + fun_str, iter=0)
-    T = xdmf.body.format(body=fun_entry,
-                         name="Visualzation of {}".format(name))
+    T = xdmf.body.format(body=fun_entry, name="Visualzation of {}".format(name))
 
     with open("{}.xdmf".format(fname), "w") as f:
         f.write(T)
@@ -56,6 +59,7 @@ def fiber_to_xdmf(fun, fname, comm=None):
 
     h5name = "{}.h5".format(fname)
     import os
+
     if os.path.isfile(h5name):
         if comm.rank == 0:
             os.unlink(h5name)
@@ -64,42 +68,45 @@ def fiber_to_xdmf(fun, fname, comm=None):
 
     fx = fun.split(deepcopy=True)[0]
     fx_arr = fx.vector().array()
-    scalar = np.arcsin(fx_arr)*180/np.pi
+    scalar = np.arcsin(fx_arr) * 180 / np.pi
     with h5py.File(h5name, "a") as h5file:
         if comm.rank == 0:
-            h5file.create_dataset("fiber/scalar",
-                                  data=scalar)
+            h5file.create_dataset("fiber/scalar", data=scalar)
 
     dim = fun.function_space().mesh().geometry().dim()
-    nverts = int(fun.vector().size()/dim)
+    nverts = int(fun.vector().size() / dim)
     name = "fiber"
-    
-    fun_scal = xdmf.scalar_attribute.format(name="angle",
-                                            nverts=nverts,
-                                            center="Node",
-                                            h5group="/".join([name, "scalar"]),
-                                            dim=1,
-                                            h5name=os.path.basename(h5name))
 
-    fun_vec = xdmf.vector_attribute.format(name=name,
-                                           nverts=nverts,
-                                           dim=dim,
-                                           center="Node",
-                                           h5group="/".join([name, "vector"]),
-                                           h5name=os.path.basename(h5name))
+    fun_scal = xdmf.scalar_attribute.format(
+        name="angle",
+        nverts=nverts,
+        center="Node",
+        h5group="/".join([name, "scalar"]),
+        dim=1,
+        h5name=os.path.basename(h5name),
+    )
+
+    fun_vec = xdmf.vector_attribute.format(
+        name=name,
+        nverts=nverts,
+        dim=dim,
+        center="Node",
+        h5group="/".join([name, "vector"]),
+        h5name=os.path.basename(h5name),
+    )
 
     fun_top = xdmf.topology_polyvert.format(nverts=nverts)
-    fun_geo = xdmf.geometry.format(nverts=nverts,
-                                   dim=dim,
-                                   coords="XYZ",
-                                   h5group="/".join([name, "coordinates"]),
-                                   h5name=os.path.basename(h5name))
+    fun_geo = xdmf.geometry.format(
+        nverts=nverts,
+        dim=dim,
+        coords="XYZ",
+        h5group="/".join([name, "coordinates"]),
+        h5name=os.path.basename(h5name),
+    )
 
-    fname = fun_geo + fun_top + fun_scal+fun_vec
-    fun_entry = xdmf.entry_single.format(frame=fname,
-                                         iter=0)
-    T = xdmf.body.format(body=fun_entry,
-                         name="Visualzation of {}".format(name))
+    fname = fun_geo + fun_top + fun_scal + fun_vec
+    fun_entry = xdmf.entry_single.format(frame=fname, iter=0)
+    T = xdmf.body.format(body=fun_entry, name="Visualzation of {}".format(name))
 
     with open("{}.xdmf".format(fname), "w") as f:
         f.write(T)
@@ -134,9 +141,8 @@ class MyXDMFFile:
     
 
     """
-    
-    def __init__(self, name, comm=None,
-                 overwrite_file=True):
+
+    def __init__(self, name, comm=None, overwrite_file=True):
 
         if comm is None:
             comm = df.mpi_comm_world()
@@ -180,7 +186,7 @@ class MyXDMFFile:
 
             m = obj.function_space().mesh()
 
-            for i in range(degree-1):
+            for i in range(degree - 1):
 
                 m = df.refine(m)
                 V = df.FunctionSpace(m, "Lagrange", 1)
@@ -188,36 +194,33 @@ class MyXDMFFile:
         else:
             mesh_str = None
 
-        self.functions[name][time] = dolfin_to_hd5(obj,
-                                                   self.h5name,
-                                                   time, self.comm,
-                                                   name)
+        self.functions[name][time] = dolfin_to_hd5(
+            obj, self.h5name, time, self.comm, name
+        )
 
         # For moving mesh see own class XDMFFileMove
         if mesh_str and mesh_str not in self.mesh:
-            self.mesh[mesh_str] = dolfin_to_hd5(m, self.h5name,
-                                                "", self.comm, mesh_str)
+            self.mesh[mesh_str] = dolfin_to_hd5(m, self.h5name, "", self.comm, mesh_str)
 
     def finalize(self):
         """
         Write XDMFFile based on content in H5 file
         """
-        families = np.array([v[0]["family"] for v in self.functions.values()])
+        families = np.array([v[0]["family"] for v in list(self.functions.values())])
         families[families == "Discontinuous Lagrange"] = "Lagrange"
         entries = {k: "" for k in np.unique(families)}
 
         # Check how many entries there are of each.
         # If the number do not correspond, repeat the final entry
         # until the numbers correspond
-        times = {k: np.max(list(v.keys())) for k, v in self.functions.items()}
+        times = {k: np.max(list(v.keys())) for k, v in list(self.functions.items())}
         N = np.max(list(times.values()))
 
-        for i in range(N+1):
+        for i in range(N + 1):
 
-            entry = {k: {"att": "", "top": "", "geo": ""}
-                     for k in np.unique(families)}
+            entry = {k: {"att": "", "top": "", "geo": ""} for k in np.unique(families)}
 
-            for k, v in self.functions.items():
+            for k, v in list(self.functions.items()):
 
                 if i in v:
                     i_ = i
@@ -225,34 +228,41 @@ class MyXDMFFile:
                     i_ = times[k]
 
                 d = v[i_]
-                if d["family"] in ["Lagrange", 'Discontinuous Lagrange']:
+                if d["family"] in ["Lagrange", "Discontinuous Lagrange"]:
 
-                    degree = d["degree"] if d["family"] == "Lagrange"\
-                             else d["degree"]+1
+                    degree = (
+                        d["degree"] if d["family"] == "Lagrange" else d["degree"] + 1
+                    )
                     m = self.mesh["mesh_lagrange_{}".format(degree)]
 
-                    top = xdmf.topology.format(ncells=d["ncells"],
-                                               dim=d["top_dim"],
-                                               h5group=d["topology"],
-                                               cell=d["cell"],
-                                               h5name=self.h5name)
-                    
-                    geo = xdmf.geometry.format(nverts=d["nverts"],
-                                               dim=d["geo_dim"],
-                                               coords=d["coords"],
-                                               h5group=d["coordinates"],
-                                               h5name=self.h5name)
+                    top = xdmf.topology.format(
+                        ncells=d["ncells"],
+                        dim=d["top_dim"],
+                        h5group=d["topology"],
+                        cell=d["cell"],
+                        h5name=self.h5name,
+                    )
+
+                    geo = xdmf.geometry.format(
+                        nverts=d["nverts"],
+                        dim=d["geo_dim"],
+                        coords=d["coords"],
+                        h5group=d["coordinates"],
+                        h5name=self.h5name,
+                    )
 
                     family = "Lagrange"
 
                 elif d["family"] == "Quadrature":
 
                     top = xdmf.topology_polyvert.format(nverts=d["nverts"])
-                    geo = xdmf.geometry.format(nverts=d["nverts"],
-                                               dim = d["geo_dim"],
-                                               coords=d["coords"],
-                                               h5group=d["coordinates"],
-                                               h5name=self.h5name)
+                    geo = xdmf.geometry.format(
+                        nverts=d["nverts"],
+                        dim=d["geo_dim"],
+                        coords=d["coords"],
+                        h5group=d["coordinates"],
+                        h5name=self.h5name,
+                    )
 
                     family = "Quadrature"
 
@@ -266,27 +276,27 @@ class MyXDMFFile:
                 elif d["type"] == "vector":
                     att_ = xdmf.vector_attribute
 
-                if d["family"] == 'Discontinuous Lagrange':
+                if d["family"] == "Discontinuous Lagrange":
                     center = "Cell"
                 else:
                     center = "Node"
 
-                entry[family]["att"] += att_.format(name=k,
-                                                    nverts=d["nverts"],
-                                                    dim=d["dim"],
-                                                    h5name=self.h5name,
-                                                    center=center,
-                                                    h5group=d["vector"])
-       
-            for k, v in entry.items():
-                fname = v["top"]+v["geo"]+v["att"]
-                entries[k] += xdmf.entry.format(frame=fname,
-                                                iter=str(i))
-        lst = " ".join(np.array(range(N+1), dtype=str))
+                entry[family]["att"] += att_.format(
+                    name=k,
+                    nverts=d["nverts"],
+                    dim=d["dim"],
+                    h5name=self.h5name,
+                    center=center,
+                    h5group=d["vector"],
+                )
 
-        for k, entry in entries.items():
-            body = xdmf.series.format(entry=entry, N=N+1,
-                                      lst=lst, name=self.name)
+            for k, v in list(entry.items()):
+                fname = v["top"] + v["geo"] + v["att"]
+                entries[k] += xdmf.entry.format(frame=fname, iter=str(i))
+        lst = " ".join(np.array(list(range(N + 1)), dtype=str))
+
+        for k, entry in list(entries.items()):
+            body = xdmf.series.format(entry=entry, N=N + 1, lst=lst, name=self.name)
             B = xdmf.body.format(body=body)
             with open("{}_{}.xdmf".format(self.name, k), "w") as f:
                 f.write(B)
@@ -294,15 +304,12 @@ class MyXDMFFile:
 
 def _test_fun_to_xdmf():
     mesh = df.UnitSquareMesh(4, 4)
-    elm = df.VectorElement(family="Quadrature",
-                           cell=mesh.ufl_cell(),
-                           degree=4,
-                           quad_scheme="default")
-    
+    elm = df.VectorElement(
+        family="Quadrature", cell=mesh.ufl_cell(), degree=4, quad_scheme="default"
+    )
+
     V = df.FunctionSpace(mesh, elm)
-    fun = df.interpolate(df.Expression(("sin(x[0])",
-                                        "cos(x[1])"),
-                                       degree=2), V)
+    fun = df.interpolate(df.Expression(("sin(x[0])", "cos(x[1])"), degree=2), V)
 
     fun_to_xdmf(fun, "test")
 
@@ -310,20 +317,16 @@ def _test_fun_to_xdmf():
 def _test_xdmf_2D():
 
     xd = MyXDMFFile("test.h5", df.mpi_comm_world(), interpolate=False)
-    
-    mesh = df.UnitSquareMesh(4, 4)
-    elm = df.VectorElement(family="Quadrature",
-                           cell=mesh.ufl_cell(),
-                           degree=4,
-                           quad_scheme="default")
-    
-    Q = df.FunctionSpace(mesh, elm)
-    fun = df.interpolate(df.Expression(("sin(x[0])",
-                                        "cos(x[1])"),
-                                       degree=4), Q)
 
-    elm = df.FiniteElement(family="CG",
-                           cell=mesh.ufl_cell(), degree=1)
+    mesh = df.UnitSquareMesh(4, 4)
+    elm = df.VectorElement(
+        family="Quadrature", cell=mesh.ufl_cell(), degree=4, quad_scheme="default"
+    )
+
+    Q = df.FunctionSpace(mesh, elm)
+    fun = df.interpolate(df.Expression(("sin(x[0])", "cos(x[1])"), degree=4), Q)
+
+    elm = df.FiniteElement(family="CG", cell=mesh.ufl_cell(), degree=1)
     V = df.FunctionSpace(mesh, elm)
     W = df.FunctionSpace(mesh, "DG", 0)
 
